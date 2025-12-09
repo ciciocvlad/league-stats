@@ -1,9 +1,12 @@
 import json
+from pathlib import Path
 
 
 class Repository:
     def __init__(self, puuid):
-        self.file = f'/Users/sjene/lol/stats/{puuid}.json'
+        home = Path.home()
+        Path(home / 'lol/stats').mkdir(parents=True, exist_ok=True)
+        self.file = home / f'lol/stats/{puuid}.json'
 
     def read(self):
         try:

@@ -6,6 +6,7 @@ from utils.exceptions import ServerError
 from utils.iterable import mymap
 from utils.summoner_spells import summoner_spells
 from utils.request import Request
+from utils.utils import Utils
 
 
 class Summoner:
@@ -47,7 +48,7 @@ class Summoner:
             count += game['duration']
         return [count // 86400, count % 86400 // 3600, count % 86400 % 3600 // 60]
 
-    def get_winrate(self, champion):
+    def get_winrate_with_champion(self, champion):
         data = self.repo.read()
         win = lose = 0
         for game in data[champion]:
@@ -97,7 +98,7 @@ class Summoner:
             roles['teamPosition'] += 1
         return roles
 
-    def get_played_with(self):
+    def __get_played_with(self):
         data = self.repo.read()
         counts = {}
         for game in sum(data.values(), []):
@@ -107,7 +108,8 @@ class Summoner:
                     counts[key] = (count + 1, games + [game])
         return {key: (count, games) for key, (count, games) in counts.items() if count > 1}
 
-    def get_played_with_details(self, data):
+    def get_played_with(self):
+        data = self.__get_played_with()
         res = {}
         for key, (count, games) in data.items():
             summoner = self.get_by_puuid(key)
@@ -118,6 +120,16 @@ class Summoner:
                 else:
                     res[summoner.game_name]['against'][game['win']].append(game)
         return res
+
+    def get_duo(self, data):
+        return {key: value for key, value in data.items() if Utils.no_games(value['against'])}
+
+    def get_winrate(self, data):
+        return {
+            key: {
+                'with': 'no games' if Utils.no_games(value['with']) else f'{Utils.get_winrate(value['with'])}%',
+                'against': 'no games' if Utils.no_games(value['against']) else f'{Utils.get_winrate(value['against'])}%'
+            } for key, value in data.items()}
 
     def update_stats(self):
         data = self.repo.read()
@@ -145,7 +157,11 @@ class Summoner:
     def get_by_puuid(puuid):
         url = f'https://europe.api.riotgames.com/riot/account/v1/accounts/by-puuid/{puuid}'
         response = Request.make_request(url)
-        data = Request.get_data(response)
-        return Summoner(f'{data['gameName']}#{data['tagLine']}')
+        try:
+            data = Request.get_data(response)
+            return Summoner(f'{data['gameName']}#{data['tagLine']}')
+        except ServerError:
+            print('Could not get summoner')
+
         
 
