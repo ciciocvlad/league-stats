@@ -1,0 +1,11 @@
+summoner_spells = {
+    21: 'Barrier',
+    1: 'Cleanse',
+    14: 'Ignite',
+    3: 'Exhaust',
+    4: 'Flash',
+    6: 'Ghost',
+    7: 'Heal',
+    11: 'Smite',
+    12: 'Teleport'
+}
