@@ -13,3 +13,8 @@ class Utils:
     def games_count(games):
         return len(games[True]) + len(games[False])
 
+    @staticmethod
+    def camel(snake):
+        first, *other = snake.split('_')
+        return ''.join([first, *map(str.title, other)])
+

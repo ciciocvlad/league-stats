@@ -2,7 +2,8 @@ import os
 import operator
 from repository import Repository
 from player import Player
-from utils.exceptions import ServerError
+from match import Match
+from utils.exceptions import ServerError, FunctionCallError
 from utils.iterable import mymap
 from utils.summoner_spells import summoner_spells
 from utils.request import Request
@@ -23,19 +24,39 @@ class Summoner:
         except ServerError:
             print('Could not receive summoner')
 
-    def __get_games(self, count):
-        url = f'https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/{self.puuid}/ids?start=0&count={count}'
+    # start_time: long, epoch in seconds, optional
+    # end_time: long, epoch in seconds, optional
+    # queue: int, queue id, optional
+    # type: string, [ranked/normal/tourney/tutorial], optional
+    # start: int, start index, optional, default: 0
+    # count: int, number of ids to return, [0-100], optional, default: 20
+    def get_games(self, **kwargs):
+        params = '&'.join(f'{Utils.camel(key)}={value}' for key, value in kwargs.items())
+        url = f'https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/{self.puuid}/ids?{params}'
         return Request.make_request(url)
+
+    def get_games_until_start_time(self, **kwargs):
+        if kwargs['start_time'] is None:
+            raise FunctionCallError('No start time provided')
+
+        games = []
+        response = self.get_games(**kwargs)
+        while (data := Request.get_data(response)) != []:
+            games += data
+            last_game = self.__get_game(data[-1])
+            kwargs['end_time'] = last_game['info']['gameStartTimestamp'] // 1000
+            response = self.get_games(**kwargs)
+        return games
+
+    def get_games_from_array(self, games):
+        return mymap(self.__get_game, games)
 
     def __get_game(self, game):
         try:
-            return Request.get_data(Request.make_request(f'https://europe.api.riotgames.com/lol/match/v5/matches/{game}'))
-        except ServerError:
+            return Request.get_data(Match.get_by_id(game))
+        except ServerError as e:
+            print(e)
             return None
-
-    def get_games(self, count=20):
-        games = self.__get_games(count)
-        return mymap(self.__get_game, Request.get_data(games))
 
     def get_champion_data(self, champion):
         data = self.repo.read()
@@ -131,9 +152,9 @@ class Summoner:
                 'against': 'no games' if Utils.no_games(value['against']) else f'{Utils.get_winrate(value['against'])}%'
             } for key, value in data.items()}
 
-    def update_stats(self):
+    def update_stats(self, games):
         data = self.repo.read()
-        games = self.get_games(50)
+        games = self.get_games()
         for game in games:
             game_id = game['metadata']['matchId']
             duration = game['info']['gameDuration']
@@ -162,6 +183,4 @@ class Summoner:
             return Summoner(f'{data['gameName']}#{data['tagLine']}')
         except ServerError:
             print('Could not get summoner')
-
-        
 
